@@ -8,8 +8,9 @@ import { createRuntimeRng } from '../game/rng/rng'
 import { createSpinPlan } from '../game/spin/spinPlan'
 import type { SpinResult } from '../game/spin/spinResult'
 import { iconValues } from '../game/payout/iconValues'
-import { advanceCursor, createWheelStrip, type WheelStrip } from '../game/wheel/wheelStrip'
+import { advanceCursor, createWheelStrip, removeIcon, type WheelStrip } from '../game/wheel/wheelStrip'
 import { getSelectedIcon } from '../game/wheel/wheelStrip'
+import { getUpperRightmostIconIndex } from '../game/wheel/iconTargeting'
 import { WheelStripView } from './wheel/WheelStripView'
 
 export type MountedPixi = {
@@ -23,6 +24,9 @@ export type MountedPixi = {
   showWheelBonus: (wheelIndex: number, value: number) => void
   rollOffWheelValue: (wheelIndex: number) => Promise<void>
   hideWheelValues: () => void
+  removeIconFromWheel: (wheelIndex: number) => boolean
+  getWheelCount: () => number
+  isGameOver: () => boolean
   destroy: () => void
 }
 
@@ -43,6 +47,8 @@ export async function mountPixi(
   const { count: WHEEL_COUNT, visibleCount, slotSpacing, iconSize } = WHEEL_CONFIG
 
   const wheelWidth = iconSize + 36
+  // Use maximum possible height for layout spacing - individual wheels may be smaller
+  // when icons are removed, but layout spacing accommodates the largest wheel
   const wheelHeight = (visibleCount - 1) * slotSpacing + iconSize + 36
 
   const machine = new Container()
@@ -52,6 +58,7 @@ export async function mountPixi(
   let spinIndex = 0
   let lastResult: SpinResult | null = null
   let locked = false
+  let gameOver = false
 
   const wheels = Array.from({ length: WHEEL_COUNT }, (_, wheelIdx) => {
     const strip: WheelStrip = createWheelStrip(ICON_IDS, wheelIdx)
@@ -76,29 +83,86 @@ export async function mountPixi(
   let draggedWheel: (typeof wheels)[number] | null = null
   let draggedWheelOriginalIndex: number | null = null
   let dropZoneIndicator: Graphics | null = null
+  
+  // Drag performance optimization state
+  let pendingDragMove: { globalX: number } | null = null
+  let dragAnimationFrameId: number | null = null
+  let cachedLayoutPoints: { x: number; y: number }[] | null = null
+  let cachedWheelCount: number | null = null
+  let lastDropZoneIndex: number | null = null
 
   // Setup drag and drop handlers
   const setupDragAndDrop = () => {
+    // Remove all existing event listeners from all wheels
+    for (const wheel of wheels) {
+      wheel.view.removeAllListeners('dragstart')
+      wheel.view.removeAllListeners('dragmove')
+      wheel.view.removeAllListeners('dragend')
+    }
+
+    // Add fresh event listeners
     for (let i = 0; i < wheels.length; i += 1) {
       const wheel = wheels[i]
       wheel.view.on('dragstart', (event: { wheel: WheelStripView; originalX: number }) => {
-        if (activeSpin || locked) return
+        if (activeSpin || locked || gameOver) return
         draggedWheel = wheel
         draggedWheelOriginalIndex = i
         updateDragState()
+        
+        // Cache layout points for the entire drag operation
+        const actualWheelCount = wheels.length
+        const w = app.renderer.width
+        cachedLayoutPoints = computeCenteredGridLayout({
+          count: actualWheelCount,
+          containerWidth: w,
+          wheelWidth,
+          wheelHeight,
+          gapX: LAYOUT_CONFIG.wheelGapX,
+          gapY: LAYOUT_CONFIG.wheelGapY,
+          maxCols: LAYOUT_CONFIG.maxWheelCols,
+        })
+        cachedWheelCount = actualWheelCount
+        lastDropZoneIndex = null
       })
 
       wheel.view.on('dragmove', (event: { wheel: WheelStripView; x: number; globalX: number }) => {
         if (draggedWheel === null) return
-        showDropZone(event.globalX)
+        
+        // Queue the latest drag position for next animation frame
+        pendingDragMove = { globalX: event.globalX }
+        
+        // Schedule update if not already scheduled
+        if (dragAnimationFrameId === null) {
+          dragAnimationFrameId = requestAnimationFrame(() => {
+            if (pendingDragMove) {
+              showDropZone(pendingDragMove.globalX)
+              pendingDragMove = null
+            }
+            dragAnimationFrameId = null
+          })
+        }
       })
 
       wheel.view.on('dragend', (event: { wheel: WheelStripView; x: number; globalX: number }) => {
         if (draggedWheel === null) return
+        
+        // Cancel any pending animation frame
+        if (dragAnimationFrameId !== null) {
+          cancelAnimationFrame(dragAnimationFrameId)
+          dragAnimationFrameId = null
+        }
+        pendingDragMove = null
+        
         handleWheelDrop(event.globalX)
         draggedWheel = null
         draggedWheelOriginalIndex = null
         hideDropZone()
+        
+        // Clear cached layout points
+        cachedLayoutPoints = null
+        cachedWheelCount = null
+        lastDropZoneIndex = null
+        
         updateDragState()
       })
     }
@@ -117,21 +181,20 @@ export async function mountPixi(
       machine.addChild(dropZoneIndicator)
     }
 
-    // Convert global screen coordinates to machine-local coordinates
-    const screenPoint = { x: globalX, y: 0 }
-    const localPoint = machine.toLocal(screenPoint)
-
-    // Calculate which wheel position this corresponds to using the same layout calculation
-    const w = app.renderer.width
-    const points = computeCenteredGridLayout({
-      count: WHEEL_COUNT,
-      containerWidth: w,
+    // Use cached layout points if available, otherwise calculate
+    const points = cachedLayoutPoints ?? computeCenteredGridLayout({
+      count: cachedWheelCount ?? wheels.length,
+      containerWidth: app.renderer.width,
       wheelWidth,
       wheelHeight,
       gapX: LAYOUT_CONFIG.wheelGapX,
       gapY: LAYOUT_CONFIG.wheelGapY,
       maxCols: LAYOUT_CONFIG.maxWheelCols,
     })
+
+    // Convert global screen coordinates to machine-local coordinates (cached during drag)
+    const screenPoint = { x: globalX, y: 0 }
+    const localPoint = machine.toLocal(screenPoint)
 
     // Find nearest drop position
     let nearestIndex = 0
@@ -143,6 +206,12 @@ export async function mountPixi(
         nearestIndex = i
       }
     }
+
+    // Only redraw if the target index has changed
+    if (lastDropZoneIndex === nearestIndex) {
+      return
+    }
+    lastDropZoneIndex = nearestIndex
 
     // Draw drop zone indicator
     dropZoneIndicator.clear()
@@ -156,6 +225,51 @@ export async function mountPixi(
     if (dropZoneIndicator) {
       dropZoneIndicator.clear()
     }
+  }
+
+  const destroyWheel = (wheelIndex: number) => {
+    const wheel = wheels[wheelIndex]
+    if (!wheel) return
+
+    // Remove wheel view from machine container
+    machine.removeChild(wheel.view)
+    
+    // Clean up wheel view
+    wheel.view.destroy({ children: true })
+
+    // If this wheel was being dragged, clear drag state
+    if (draggedWheel === wheel) {
+      draggedWheel = null
+      draggedWheelOriginalIndex = null
+      hideDropZone()
+    }
+
+    // Remove wheel from wheels array
+    wheels.splice(wheelIndex, 1)
+
+    // Recalculate layout to fill gap
+    layout()
+
+    // Update drag and drop handlers for remaining wheels
+    setupDragAndDrop()
+    updateDragState()
+
+    // Check for game over
+    if (wheels.length === 0) {
+      triggerGameOver()
+    }
+  }
+
+  const triggerGameOver = () => {
+    // Mark game as over
+    gameOver = true
+    
+    // Stop all game loops by setting locked state
+    locked = true
+    updateDragState()
+
+    // Show game over message (simple alert for now, can be improved later)
+    alert('Game Over! All wheels have been destroyed.')
   }
 
   const handleWheelDrop = (globalX: number) => {
@@ -220,8 +334,11 @@ export async function mountPixi(
 
     machine.position.set(Math.round(w / 2), Math.round(h / 2))
 
+    // Use actual wheel count instead of WHEEL_COUNT constant
+    const actualWheelCount = wheels.length
+
     const points = computeCenteredGridLayout({
-      count: WHEEL_COUNT,
+      count: actualWheelCount,
       containerWidth: w,
       wheelWidth,
       wheelHeight,
@@ -259,7 +376,7 @@ export async function mountPixi(
   }
 
   const startSpin = () => {
-    if (activeSpin || locked) return
+    if (activeSpin || locked || gameOver) return
 
     const wheelStates = wheels.map((w, i) => ({
       plan: createSpinPlan({
@@ -360,6 +477,38 @@ export async function mountPixi(
     hideWheelValues: () => {
       for (const w of wheels) w.view.hideValue()
     },
+    removeIconFromWheel: (wheelIndex: number) => {
+      const wheel = wheels[wheelIndex]
+      if (!wheel) return false
+
+      // Check if this is the last icon - if so, destroy the wheel
+      if (wheel.strip.icons.length <= 1) {
+        // Destroy the wheel
+        destroyWheel(wheelIndex)
+        return true
+      }
+
+      try {
+        // Get the upper-rightmost icon index
+        const iconIndex = getUpperRightmostIconIndex(wheel.strip, visibleCount)
+        // Remove the icon
+        const newStrip = removeIcon(wheel.strip, iconIndex)
+        wheel.strip = newStrip
+        // Update the view to reflect the change
+        wheel.view.update(newStrip)
+        // Visual feedback: briefly flash the wheel to indicate icon removal
+        wheel.view.alpha = 0.7
+        setTimeout(() => {
+          wheel.view.alpha = 1
+        }, 150)
+        return true
+      } catch (error) {
+        // Icon removal failed - should not happen now, but handle gracefully
+        return false
+      }
+    },
+    getWheelCount: () => wheels.length,
+    isGameOver: () => gameOver,
     destroy: () => {
       window.removeEventListener('resize', layout)
       app.destroy(true)

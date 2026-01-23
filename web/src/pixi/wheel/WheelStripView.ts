@@ -3,7 +3,7 @@ import { Container, Graphics, Sprite, Text, type Application } from 'pixi.js'
 import { WHEEL_CONFIG } from '../../game/config/wheelConfig'
 import type { IconId } from '../../game/icons/iconIds'
 import type { WheelStrip } from '../../game/wheel/wheelStrip'
-import { getStripLayout } from '../../game/wheel/stripLayout'
+import { getStripLayout, type StripLayout } from '../../game/wheel/stripLayout'
 import { createPlaceholderIconTexture } from '../icons/createPlaceholderIconTexture'
 
 export type WheelStripViewOptions = {
@@ -35,6 +35,10 @@ export class WheelStripView extends Container {
   private dragStartX = 0
   private originalX = 0
   private isDraggable = true
+  
+  // Graphics rendering optimization: track previous dimensions to avoid unnecessary redraws
+  private lastActualVisibleCount: number | null = null
+  private lastIsDamaged: boolean | null = null
 
   constructor(app: Application, strip: WheelStrip, options: WheelStripViewOptions = {}) {
     super()
@@ -88,9 +92,22 @@ export class WheelStripView extends Container {
     this.overlayLayer.addChild(this.valueLabel)
     this.addChild(this.overlayLayer)
 
-    this.renderSoftBlocks()
-    this.renderFrame()
-    this.renderClipMask()
+    // Initial render with full visible count (will be updated when strip changes)
+    const initialLayout = getStripLayout({
+      strip,
+      visibleCount: this.visibleCount,
+      slotSpacing: this.slotSpacing,
+    })
+    const initialVisibleCount = initialLayout.iconIds.length
+    const initialIsDamaged = strip.icons.length <= 3
+    
+    // Initialize tracked dimensions
+    this.lastActualVisibleCount = initialVisibleCount
+    this.lastIsDamaged = initialIsDamaged
+    
+    this.renderSoftBlocks(initialLayout, initialVisibleCount)
+    this.renderFrame(initialVisibleCount, initialIsDamaged)
+    this.renderClipMask(initialVisibleCount)
     this.update(strip)
     this.setupDragInteraction()
   }
@@ -226,13 +243,38 @@ export class WheelStripView extends Container {
       slotSpacing: this.slotSpacing,
     })
 
-    for (let i = 0; i < this.visibleCount; i += 1) {
+    const actualVisibleCount = layout.iconIds.length
+    const isDamaged = strip.icons.length <= 3
+
+    // Update visible sprites
+    for (let i = 0; i < actualVisibleCount; i += 1) {
       const sprite = this.sprites[i]
       sprite.texture = this.getTextureForIconId(layout.iconIds[i])
       sprite.width = this.iconSize
       sprite.height = this.iconSize
       sprite.position.set(0, layout.yPositions[i] + scrollOffsetY)
       sprite.alpha = i === layout.selectedIndex ? 1 : 0.72
+      sprite.visible = true
+    }
+
+    // Hide unused sprites beyond actual icon count
+    for (let i = actualVisibleCount; i < this.visibleCount; i += 1) {
+      this.sprites[i].visible = false
+    }
+
+    // Only redraw graphics when dimensions or damage state actually change
+    const dimensionsChanged = this.lastActualVisibleCount !== actualVisibleCount
+    const damageStateChanged = this.lastIsDamaged !== isDamaged
+    
+    if (dimensionsChanged || damageStateChanged) {
+      // Update frame, clip mask, and soft blocks to match actual visible count
+      this.renderFrame(actualVisibleCount, isDamaged)
+      this.renderClipMask(actualVisibleCount)
+      this.renderSoftBlocks(layout, actualVisibleCount)
+      
+      // Update tracked dimensions
+      this.lastActualVisibleCount = actualVisibleCount
+      this.lastIsDamaged = isDamaged
     }
 
     this.renderSelector(layout.selectedIndex)
@@ -247,48 +289,72 @@ export class WheelStripView extends Container {
     return texture
   }
 
-  private renderFrame(): void {
+  private renderFrame(actualVisibleCount: number = this.visibleCount, isDamaged: boolean = false): void {
     const w = this.iconSize + 36
-    const h = (this.visibleCount - 1) * this.slotSpacing + this.iconSize + 36
+    const h = Math.max(this.iconSize + 36, (actualVisibleCount - 1) * this.slotSpacing + this.iconSize + 36)
 
     this.frame.clear()
-    this.frame
-      .roundRect(-w / 2, -h / 2, w, h, 18)
-      .stroke({ color: 0xffffff, alpha: 0.14, width: 2 })
+    
+    // Show warning color for damaged wheels (few icons remaining)
+    if (isDamaged) {
+      // Red/orange tint for damaged wheels - use thinner, less prominent border
+      this.frame
+        .roundRect(-w / 2, -h / 2, w, h, 18)
+        .stroke({ color: 0xff6666, alpha: 0.4, width: 2 })
+    } else {
+      // Normal white frame
+      this.frame
+        .roundRect(-w / 2, -h / 2, w, h, 18)
+        .stroke({ color: 0xffffff, alpha: 0.14, width: 2 })
+    }
   }
 
-  private renderClipMask(): void {
+  private renderClipMask(actualVisibleCount: number = this.visibleCount): void {
     const w = this.iconSize + 36
-    const h = (this.visibleCount - 1) * this.slotSpacing + this.iconSize + 36
+    const h = Math.max(this.iconSize + 36, (actualVisibleCount - 1) * this.slotSpacing + this.iconSize + 36)
 
     this.clipMask.clear()
     this.clipMask.roundRect(-w / 2, -h / 2, w, h, 18).fill({ color: 0xffffff, alpha: 1 })
   }
 
-  private renderSoftBlocks(): void {
+  private renderSoftBlocks(_layout: StripLayout, actualVisibleCount: number): void {
     const frameW = this.iconSize + 36
-    const frameH = (this.visibleCount - 1) * this.slotSpacing + this.iconSize + 36
-
-    // Treat the "window" as the selected slot area (same height as the selector box).
+    const frameH = Math.max(this.iconSize + 36, (actualVisibleCount - 1) * this.slotSpacing + this.iconSize + 36)
+    
+    // The window is the selected slot area (same height as selector box), centered at y=0
     const windowH = this.iconSize + 18
-    const coverH = (frameH - windowH) / 2
+    const windowTop = -windowH / 2
+    const windowBottom = windowH / 2
+
+    // Frame bounds (centered at y=0)
+    const frameTop = -frameH / 2
+    const frameBottom = frameH / 2
 
     const coverColor = 0x0b1228
     const coverAlpha = 0.55
 
+    // Top block: covers area from top of frame to top of window
     this.topBlock.clear()
-    this.topBlock
-      .rect(-frameW / 2, -frameH / 2, frameW, coverH)
-      .fill({ color: coverColor, alpha: coverAlpha })
+    const topCoverH = windowTop - frameTop
+    if (topCoverH > 0) {
+      this.topBlock
+        .rect(-frameW / 2, frameTop, frameW, topCoverH)
+        .fill({ color: coverColor, alpha: coverAlpha })
+    }
 
+    // Bottom block: covers area from bottom of window to bottom of frame
     this.bottomBlock.clear()
-    this.bottomBlock
-      .rect(-frameW / 2, frameH / 2 - coverH, frameW, coverH)
-      .fill({ color: coverColor, alpha: coverAlpha })
+    const bottomCoverH = frameBottom - windowBottom
+    if (bottomCoverH > 0) {
+      this.bottomBlock
+        .rect(-frameW / 2, windowBottom, frameW, bottomCoverH)
+        .fill({ color: coverColor, alpha: coverAlpha })
+    }
   }
 
-  private renderSelector(selectedIndex: number): void {
-    const y = (selectedIndex - Math.floor(this.visibleCount / 2)) * this.slotSpacing
+  private renderSelector(_selectedIndex: number): void {
+    // Selector should always be at y=0 (center), since icons are centered around the selected icon
+    const y = 0
     const w = this.iconSize + 26
     const h = this.iconSize + 18
 

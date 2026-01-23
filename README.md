@@ -58,6 +58,45 @@ The production build will be in `web/dist/`. You can preview it with:
 npm run preview
 ```
 
+## 🚀 Deployment
+
+### Automated Deployment (GitHub Actions)
+
+The application is automatically deployed to GitHub Pages at `https://orionnye.github.io/SlotScroller/` on every push to the `main` branch.
+
+**How it works:**
+- GitHub Actions workflow (`.github/workflows/deploy.yml`) builds and deploys automatically
+- No manual steps required - just push to `main`
+- Deployment typically completes within 2-3 minutes
+
+**Check deployment status:**
+- Go to the [Actions tab](https://github.com/orionnye/SlotScroller/actions) in your repository
+- View the latest workflow run to see build and deployment progress
+- Once complete, your site will be available at: `https://orionnye.github.io/SlotScroller/`
+
+**First-time setup:**
+1. Go to repository settings: `https://github.com/orionnye/SlotScroller/settings/pages`
+2. Under "Source", select **"GitHub Actions"**
+3. The workflow will automatically deploy on the next push to `main`
+
+### Manual Deployment (Fallback)
+
+If you need to deploy manually (e.g., for testing or if Actions are disabled):
+
+```bash
+cd web
+npm run deploy:manual
+```
+
+This will build the application and push it to the `gh-pages` branch using the `gh-pages` npm package.
+
+**Troubleshooting:**
+
+- **404 Error**: Ensure GitHub Pages is enabled in repository settings and configured to use GitHub Actions
+- **Assets not loading**: Verify `vite.config.ts` has `base: '/SlotScroller/'` configured
+- **Build errors**: Check the Actions tab for detailed error messages
+- **Workflow not running**: Ensure GitHub Actions are enabled in repository settings
+
 ## 🧪 Testing
 
 ### Run All Tests

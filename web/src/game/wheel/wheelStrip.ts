@@ -42,3 +42,31 @@ export function advanceCursor(strip: WheelStrip, steps: number): WheelStrip {
   }
 }
 
+export function removeIcon(strip: WheelStrip, index: number): WheelStrip {
+  if (strip.icons.length <= 1) {
+    throw new Error('WheelStrip requires at least 1 icon')
+  }
+  if (index < 0 || index >= strip.icons.length) {
+    throw new Error(`Index ${index} is out of bounds for strip with ${strip.icons.length} icons`)
+  }
+
+  const newIcons = strip.icons.filter((_, i) => i !== index)
+  let newCursor = strip.cursor
+
+  // Adjust cursor if the removed icon was before or at the cursor position
+  if (index < strip.cursor) {
+    // Icon removed before cursor: shift cursor left by 1
+    newCursor = strip.cursor - 1
+  } else if (index === strip.cursor) {
+    // Icon at cursor removed: cursor stays at same index (now points to next icon)
+    // If cursor was at the last icon, wrap to 0
+    newCursor = strip.cursor >= newIcons.length ? 0 : strip.cursor
+  }
+  // If index > cursor, cursor doesn't need adjustment
+
+  return {
+    icons: newIcons,
+    cursor: normalizeCursor(newCursor, newIcons.length),
+  }
+}
+

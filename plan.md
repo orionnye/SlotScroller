@@ -1,5 +1,35 @@
 # Plan
 
+## 🚀 Current Priorities
+
+### Deployment & Cleanup (High Priority) - **START HERE**
+
+These tasks address immediate deployment issues and code quality:
+
+1. **Setup GitHub Actions Deployment** (`tasks/setup-github-actions-deployment.md`)
+   - Replace manual `npm run deploy` with automated GitHub Actions workflow
+   - Builds and deploys automatically on push to main
+   - Eliminates manual branch management
+   - **Why first**: Fixes deployment reliability issues
+
+2. **Clean Unused Code** (`tasks/clean-unused-code.md`)
+   - Remove commented imports in `main.ts` (testDeathAnimation)
+   - Delete unused test files: `testDeathAnimation.ts`, `testSvgEnemy.ts`
+   - Verify no other dead code exists
+   - **Why second**: Quick cleanup that improves code quality
+
+3. **Delete Unused Branches** (`tasks/delete-unused-branches.md`)
+   - Clean up polluted `gh-pages` branch (has `.DS_Store`, `.cursor`, etc.)
+   - Delete branch to let GitHub Actions recreate it cleanly
+   - Verify GitHub Pages settings
+   - **Why third**: Cleanup after automated deployment is set up
+
+**Execution Order**: Complete tasks 1-3 in sequence. Task 1 enables automated deployment, task 2 cleans code, task 3 cleans up the old manual deployment artifacts.
+
+---
+
+## 📋 Development Tasks
+
 - Phase 0: Scaffold + Verify PixiJS (`tasks/phase-0-scaffold-and-verify-pixijs.md`)
 - Phase 1: Render One Icon (`tasks/phase-1-render-one-icon.md`)
 - Phase 2: Wheel Strip Model (`tasks/phase-2-wheel-strip-model.md`)
@@ -40,4 +70,32 @@
 - Improve Wheel Reordering Logic (`tasks/improve-wheel-reordering-logic.md`)
 - Wheel Drag and Drop (`tasks/wheel-drag-and-drop.md`)
 - Combat Visual Polish (`tasks/combat-visual-polish.md`)
+- Enemy Attack Icon Removal (`tasks/enemy-attack-icon-removal.md`)
+- Fix Enemy Attack Behavior (`tasks/fix-enemy-attack-behavior.md`)
+- Dynamic Wheel Size Rendering (`tasks/dynamic-wheel-size-rendering.md`)
+- Fix Wheel Visual Alignment (`tasks/fix-wheel-visual-alignment.md`)
+- Implement Wheel Destruction (`tasks/implement-wheel-destruction.md`)
+- Implement Damage and Attack Animation (`tasks/implement-damage-and-attack-animation.md`)
+- Implement Enemy Defeat and Removal (`tasks/implement-enemy-defeat-and-removal.md`)
+- Optimize Drag Performance and Icon Removal (`tasks/optimize-drag-performance-and-icon-removal.md`)
+- Redesign Character Visuals (`tasks/redesign-character-visuals.md`)
+- Pause Animations and Death Effects (`tasks/pause-animations-and-death-effects.md`)
+- Bring Dying Enemies to Front (`tasks/bring-dying-enemies-to-front.md`)
+- Clone Dying Enemies for Fullscreen Fall (`tasks/clone-dying-enemies-for-fullscreen-fall.md`)
+- Extract Texture Creation Functions (`tasks/extract-texture-creation-functions.md`)
+- Extract Types and Sprite Management (`tasks/extract-types-and-sprite-management.md`)
+- Extract Combat System (`tasks/extract-combat-system.md`)
+- Extract Animation System (`tasks/extract-animation-system.md`)
+- Clone Dying Enemies for Fullscreen Fall (`tasks/clone-dying-enemies-for-fullscreen-fall.md`)
+- Create Fullscreen Death Overlay (`tasks/create-fullscreen-death-overlay.md`)
+- Create Death Animation Test View (`tasks/create-death-animation-test-view.md`)
+- Modify Death Animation Test View (`tasks/modify-death-animation-test-view.md`)
+- Implement DOM-Based Death Animation (`tasks/implement-dom-based-death-animation.md`)
+- Fix Death Animation Visibility and Ticker Destruction (`tasks/fix-pixijs-ticker-destruction.md`)
+- Revert to Overlay Death Animation System (`tasks/revert-to-overlay-death-animation.md`)
+- Implement CSS/SVG Death Animation (`tasks/implement-css-svg-death-animation.md`)
+- SVG Death Animation - Incremental Implementation (`tasks/svg-death-animation-incremental.md`)
+- Match SVG Death Animation to Enemy Render (`tasks/match-svg-death-to-enemy-render.md`)
+- Extract Enemy Color for SVG Death Animation (`tasks/extract-enemy-color-for-svg-death.md`)
+- Refactor Enemy Rendering System (`tasks/refactor-enemy-rendering-system.md`)
 

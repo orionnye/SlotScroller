@@ -21,13 +21,18 @@ export function getStripLayout(args: {
   if (slotSpacing <= 0) {
     throw new Error('slotSpacing must be > 0')
   }
+  if (strip.icons.length === 0) {
+    throw new Error('strip.icons.length must be > 0')
+  }
 
-  const selectedIndex = Math.floor(visibleCount / 2)
+  // Cap visible slots at actual icon count to prevent wrapping/duplication
+  const actualVisibleCount = Math.min(visibleCount, strip.icons.length)
+  const selectedIndex = Math.floor(actualVisibleCount / 2)
 
   const iconIds: IconId[] = []
   const yPositions: number[] = []
 
-  for (let i = 0; i < visibleCount; i += 1) {
+  for (let i = 0; i < actualVisibleCount; i += 1) {
     const offset = i - selectedIndex
     iconIds.push(getIconAtOffset(strip, offset))
     yPositions.push(offset * slotSpacing)

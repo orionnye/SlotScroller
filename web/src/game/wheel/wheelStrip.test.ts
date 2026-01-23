@@ -8,6 +8,7 @@ import {
   getIconAtOffset,
   getSelectedIcon,
   normalizeCursor,
+  removeIcon,
 } from './wheelStrip'
 
 const ICONS: readonly IconId[] = ['cherry', 'lemon', 'seven']
@@ -54,6 +55,35 @@ describe('wheelStrip', () => {
   test('advanceCursor with zero steps returns the same object', () => {
     const strip0 = createWheelStrip(ICONS, 0)
     expect(advanceCursor(strip0, 0)).toBe(strip0)
+  })
+
+  test('removes icon by index and adjusts cursor', () => {
+    const strip0 = createWheelStrip(ICONS, 0)
+    const strip1 = removeIcon(strip0, 1)
+    expect(strip1.icons).toEqual(['cherry', 'seven'])
+    expect(strip1.cursor).toBe(0)
+    expect(getSelectedIcon(strip1)).toBe('cherry')
+  })
+
+  test('removes icon at cursor and moves cursor to next valid position', () => {
+    const strip0 = createWheelStrip(ICONS, 1)
+    const strip1 = removeIcon(strip0, 1)
+    expect(strip1.icons).toEqual(['cherry', 'seven'])
+    expect(strip1.cursor).toBe(1)
+    expect(getSelectedIcon(strip1)).toBe('seven')
+  })
+
+  test('removes icon before cursor and adjusts cursor', () => {
+    const strip0 = createWheelStrip(ICONS, 2)
+    const strip1 = removeIcon(strip0, 0)
+    expect(strip1.icons).toEqual(['lemon', 'seven'])
+    expect(strip1.cursor).toBe(1)
+    expect(getSelectedIcon(strip1)).toBe('seven')
+  })
+
+  test('rejects removal when only one icon remains', () => {
+    const strip = createWheelStrip(['cherry'], 0)
+    expect(() => removeIcon(strip, 0)).toThrow(/at least 1 icon/i)
   })
 })
 

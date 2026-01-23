@@ -9,6 +9,7 @@ import {
   type PayoutPanel,
 } from './pixi/payoutRevealSequence'
 import { mountTopScene } from './pixi/topScene/mountTopScene'
+// import { createDeathAnimationTest } from './pixi/topScene/testDeathAnimation' // Disabled - using real death animations now
 
 function createAppStructure(root: HTMLDivElement): {
   pixiRoot: HTMLDivElement
@@ -132,7 +133,20 @@ const { pixiRoot, topPixiRoot, spinBtn, payoutTotal, payoutLines } =
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
-await mountTopScene(topPixiRoot)
+const topScene = await mountTopScene(topPixiRoot, {
+  onEnemyAttack: () => {
+    // Check if game is over
+    if (pixi.isGameOver()) return
+    
+    // Target the rightmost wheel (highest index)
+    // Get the number of wheels from the mounted pixi instance
+    const wheelCount = pixi.getWheelCount?.() ?? 5
+    if (wheelCount === 0) return // No wheels left, game over should already be triggered
+    
+    const rightmostIndex = wheelCount > 0 ? wheelCount - 1 : 0
+    pixi.removeIconFromWheel(rightmostIndex)
+  },
+})
 
 const pixi = await mountPixi(pixiRoot, {
   onSpinComplete: async (result) => {
@@ -165,6 +179,12 @@ const pixi = await mountPixi(pixiRoot, {
     await sleep(ANIMATION_CONFIG.finalPayoutDelayMs)
     pixi.hideWheelValues()
 
+    // Trigger Hero attack animation and deal damage to nearest enemy
+    const nearestEnemy = topScene.findNearestEnemy()
+    if (nearestEnemy) {
+      await topScene.triggerHeroAttack(nearestEnemy, payout.total)
+    }
+
     pixi.setLocked(false)
     spinBtn.disabled = false
   },
@@ -173,3 +193,6 @@ const pixi = await mountPixi(pixiRoot, {
 spinBtn.addEventListener('click', () => {
   pixi.spin()
 })
+
+// Test death animation disabled - using real DOM-based death animations now
+// void createDeathAnimationTest()

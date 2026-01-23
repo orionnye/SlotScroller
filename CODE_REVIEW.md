@@ -1,259 +1,169 @@
-# 🔬 Code Review: SlotScroller Project
-
-**Date:** 2025-01-27  
-**Reviewer:** AI Code Review Agent  
-**Review Scope:** Full project codebase review following `ai/rules/review.mdc` guidelines
-
----
+# Code Review: Performance and Animation Smoothness
 
 ## 🎯 Restate
 
-This review examines the SlotScroller project—a PixiJS-based slot machine combat game combining roguelike mechanics with slot machine gameplay. The review assesses code quality, architecture adherence, test coverage, security, and alignment with the vision document.
-
----
+User reports:
+1. General lag when moving columns (wheels during drag-and-drop)
+2. Icon removal doesn't appear smooth or intuitive
 
 ## 💡 Ideate
 
-### Review Process Applied
+### Performance Analysis
 
-1. ✅ Analyzed code structure and organization
-2. ✅ Checked adherence to coding standards and best practices
-3. ✅ Evaluated test coverage and quality
-4. ✅ Assessed performance considerations
-5. ✅ Deep scan for security vulnerabilities
-6. ✅ Reviewed UI/UX implementation
-7. ✅ Validated architectural patterns and design decisions
-8. ✅ Checked documentation quality
-9. ✅ Provided actionable feedback
+**Drag and Drop Performance Issues:**
 
----
+1. **Excessive Layout Recalculations:**
+   - `showDropZone()` is called on every `dragmove` event
+   - `showDropZone()` calls `computeCenteredGridLayout()` on every drag move
+   - Layout calculation happens 60+ times per second during drag
+   - No throttling or debouncing of drag events
+
+2. **Coordinate Conversion Overhead:**
+   - `onDragMove()` performs `toLocal()` conversions on every pointer move
+   - Multiple coordinate conversions per drag event
+   - `showDropZone()` also performs coordinate conversions
+
+3. **Graphics Redrawing:**
+   - Drop zone indicator is cleared and redrawn on every drag move
+   - Graphics operations (`clear()`, `rect()`, `stroke()`) are expensive
+
+**Icon Removal Performance Issues:**
+
+1. **Excessive Rendering Operations:**
+   - `update()` calls `renderFrame()`, `renderClipMask()`, `renderSoftBlocks()` on every update
+   - These methods call `clear()` and redraw graphics on every update
+   - Graphics clearing/redrawing is expensive, especially when done frequently
+
+2. **No Animation/Transition:**
+   - Icon removal is instant - no fade out, no smooth transition
+   - Visual feedback is just a brief alpha flash (150ms)
+   - Wheel size change is instant, not animated
+
+3. **Layout Recalculation:**
+   - `getStripLayout()` is called on every update
+   - Layout calculation happens even when nothing visible changes
+
+### Root Causes
+
+1. **No Event Throttling:** Drag events fire at pointer move rate (potentially 100+ events/sec)
+2. **Redundant Calculations:** Layout and graphics are recalculated even when unchanged
+3. **No Caching:** Drop zone calculations aren't cached between drag moves
+4. **Graphics Overhead:** Clearing and redrawing graphics on every update
+5. **No Smooth Transitions:** Icon removal and wheel resizing are instant
 
 ## 🪞 Reflect Critically
 
-### ✅ Strengths
+### Critical Performance Issues
 
-#### Architecture & Separation of Concerns
-- **Excellent separation**: Pure game logic (`game/`) is cleanly separated from rendering (`pixi/`)
-- **Pure functions**: Core game logic (payout calculation, wheel strips, RNG) uses pure functions with no side effects
-- **Type safety**: Strong TypeScript usage with readonly types and proper type definitions
-- **Modular structure**: Well-organized by feature (wheel, payout, spin, rng, icons)
+1. **Drag Lag:**
+   - `showDropZone()` recalculates entire layout on every drag move
+   - No throttling means 60-120+ layout calculations per second
+   - Graphics redrawing on every drag move
+   - Coordinate conversions on every event
 
-#### Code Quality
-- **Functional programming**: Heavy use of map/filter/reduce, immutability patterns
-- **Clear naming**: Functions are verbs, predicates read like questions (`isSpinning`, `getSelectedIcon`)
-- **Minimal comments**: Code is self-describing; comments only where necessary
-- **Configuration centralization**: Config files (`wheelConfig.ts`, `layoutConfig.ts`, `animationConfig.ts`) centralize constants
+2. **Icon Removal Not Smooth:**
+   - Instant removal with no animation
+   - Graphics redrawn immediately without transition
+   - No visual feedback showing which icon was removed
+   - Wheel size change is jarring (instant shrink)
 
-#### Testing
-- **Good unit test coverage**: Core game logic has comprehensive tests (15 test files)
-- **Test organization**: Tests colocated with source files
-- **Pure logic tested**: All game logic functions are testable in isolation
+3. **Redundant Operations:**
+   - `renderFrame()`, `renderClipMask()`, `renderSoftBlocks()` called on every update
+   - These should only be called when dimensions actually change
+   - Layout calculations happen even when strip hasn't changed
 
-#### Security
-- **No hardcoded secrets**: No API keys, tokens, or passwords found
-- **No console.log in production**: Only found in example/documentation code
-- **Crypto RNG**: Uses `crypto.getRandomValues` for runtime randomness with fallback
-- **Input validation**: RNG functions validate inputs (`maxExclusive > 0`, finite checks)
+### Code Quality Issues
 
----
-
-### ⚠️ Issues & Concerns
-
-#### Critical Issues
-
-1. **Browser Test Failures (21 failing tests)**
-   - **Location**: `src/pixi/wheel/WheelStripView.test.ts`, `WheelStripView.browser.test.ts`, `browser-test-utils.browser.test.ts`
-   - **Issue**: Tests fail with "ReferenceError: document is not defined"
-   - **Impact**: Browser rendering tests cannot run, reducing confidence in PixiJS integration
-   - **Recommendation**: Fix browser test environment setup; ensure `document` is available in test context
-
-2. **Missing Persistence Layer**
-   - **Vision requirement**: Vision document specifies local persistence (localStorage/IndexedDB) with autosave, reset, export/import
-   - **Current state**: No persistence implementation found
-   - **Impact**: Game state is lost on refresh; no save/load functionality
-   - **Recommendation**: Implement `save/` module as specified in vision
-
-3. **Combat System Incomplete**
-   - **Vision requirement**: Hero attacks enemies, enemies attack wheels, icon removal, wheel destruction, game over
-   - **Current state**: Top scene exists but combat mechanics appear incomplete
-   - **Impact**: Core gameplay loop not fully implemented
-   - **Recommendation**: Complete combat system per vision document
-
-#### Medium Priority Issues
-
-4. **No Error Boundaries or Error Handling**
-   - **Location**: `main.ts`, `mountPixi.ts`
-   - **Issue**: Missing try/catch blocks for async operations; no error recovery
-   - **Impact**: Unhandled errors could crash the game
-   - **Recommendation**: Add error boundaries and graceful error handling
-
-5. **Memory Leaks Potential**
-   - **Location**: `mountPixi.ts` - event listeners, ticker callbacks
-   - **Issue**: Event listeners added but cleanup in `destroy()` may miss edge cases
-   - **Impact**: Memory leaks during long play sessions
-   - **Recommendation**: Audit all event listeners, ensure proper cleanup
-
-6. **Missing Accessibility Features**
-   - **Issue**: No ARIA labels, keyboard navigation, or screen reader support
-   - **Impact**: Game not accessible to users with disabilities
-   - **Recommendation**: Add ARIA labels, keyboard controls, focus management
-
-7. **No Performance Monitoring**
-   - **Issue**: No FPS monitoring, performance metrics, or frame time tracking
-   - **Impact**: Cannot verify 60fps target from vision document
-   - **Recommendation**: Add performance monitoring and frame time tracking
-
-#### Low Priority / Code Quality
-
-8. **Magic Numbers**
-   - **Location**: Various files (e.g., `mountPixi.ts:208` - `setTimeout(..., 200)`)
-   - **Issue**: Some magic numbers not extracted to config
-   - **Recommendation**: Extract to `animationConfig.ts` or appropriate config file
-
-9. **Type Narrowing Could Be Improved**
-   - **Location**: `mountPixi.ts:191` - `findIndex` check could use type guard
-   - **Issue**: TypeScript could be more strict in some areas
-   - **Recommendation**: Add type guards where appropriate
-
-10. **Missing JSDoc for Public APIs**
-    - **Location**: `MountedPixi` type, exported functions
-    - **Issue**: Some public APIs lack docblocks
-    - **Recommendation**: Add minimal JSDoc comments per project standards
-
----
+1. **Missing Optimization:** No memoization or caching of expensive calculations
+2. **No Throttling:** Events aren't throttled to reasonable rates
+3. **Graphics Inefficiency:** Graphics cleared/redrawn unnecessarily
+4. **Missing Animations:** No smooth transitions for state changes
 
 ## 🔭 Expand Orthogonally
 
-### OWASP Top 10 Security Review
+### Potential Solutions
 
-1. **A01:2021 – Broken Access Control**: ✅ N/A (single-player game, no user accounts)
-2. **A02:2021 – Cryptographic Failures**: ✅ Good (uses crypto.getRandomValues, not for security-critical)
-3. **A03:2021 – Injection**: ✅ N/A (no user input parsing, no SQL/command injection vectors)
-4. **A04:2021 – Insecure Design**: ⚠️ Missing persistence layer could lead to data loss
-5. **A05:2021 – Security Misconfiguration**: ✅ Good (no server config, client-only)
-6. **A06:2021 – Vulnerable Components**: ⚠️ Should audit dependencies for known vulnerabilities
-7. **A07:2021 – Authentication Failures**: ✅ N/A (no authentication)
-8. **A08:2021 – Software and Data Integrity**: ⚠️ No integrity checks on save data (when implemented)
-9. **A09:2021 – Security Logging**: ✅ N/A (client-side game, no sensitive logging needed)
-10. **A10:2021 – SSRF**: ✅ N/A (no server requests)
+1. **Throttle Drag Events:**
+   - Throttle `dragmove` events to ~30fps (33ms intervals)
+   - Use `requestAnimationFrame` for smooth updates
+   - Cache drop zone calculations between frames
 
-**Security Recommendations:**
-- Audit npm dependencies: `npm audit`
-- When implementing persistence, add data validation and versioning
-- Consider Content Security Policy headers for production build
+2. **Optimize Drop Zone Rendering:**
+   - Only recalculate layout when drag position changes significantly
+   - Cache layout points during drag
+   - Only redraw drop zone indicator when position changes
 
-### Architecture Alignment with Vision
+3. **Add Icon Removal Animation:**
+   - Fade out removed icon over 200-300ms
+   - Animate wheel size change smoothly
+   - Show which icon was removed with visual highlight
 
-**✅ Aligned:**
-- Pure game logic separated from rendering
-- PixiJS as primary renderer
-- Web-based (Vite build)
-- Modular structure matches proposed modules
+4. **Optimize Wheel Updates:**
+   - Only call `renderFrame()`/`renderClipMask()` when dimensions change
+   - Cache layout calculations when strip hasn't changed
+   - Batch graphics operations
 
-**⚠️ Partially Aligned:**
-- `game-state/` module not found (may be implicit in current structure)
-- `combat/` module exists but incomplete
-- `save/` module missing entirely
+5. **Use PixiJS Ticker:**
+   - Leverage PixiJS ticker for smooth animations
+   - Use interpolation for smooth transitions
+   - Avoid setTimeout for animations
 
-**❌ Not Aligned:**
-- Persistence layer not implemented
-- Combat system incomplete (enemy attacks, icon removal, wheel destruction)
+## ⚖️ ScoreRankEvaluate
 
-### Test Coverage Analysis
+### Critical Issues (Must Fix)
 
-**Well Tested:**
-- ✅ Game logic: `wheelStrip`, `calcPayout`, `comboEvents`, `rng`, `spinPlan`
-- ✅ Pure functions: All core game calculations
+1. **Drag lag** - High priority, breaks user experience
+2. **Icon removal not smooth** - High priority, breaks visual feedback
+3. **Excessive layout recalculations** - High priority, performance bottleneck
 
-**Needs Testing:**
-- ❌ Browser rendering: 21 failing tests
-- ❌ Integration: No end-to-end tests for full game flow
-- ❌ User interactions: Drag-and-drop not tested
-- ❌ Error handling: No error scenario tests
+### Performance Issues
 
-**Test Quality:**
-- ✅ Tests follow TDD principles (given/should pattern)
-- ✅ Tests are isolated and pure
-- ✅ Good coverage of edge cases in game logic
+1. **No event throttling** - Medium priority, causes lag
+2. **Graphics redrawing** - Medium priority, expensive operations
+3. **No animation system** - Medium priority, poor UX
 
----
+### Code Quality Issues
 
-## ⚖️ Score & Rank Evaluate
-
-### Overall Assessment
-
-| Category | Score | Notes |
-|---------|-------|-------|
-| **Architecture** | 9/10 | Excellent separation of concerns, clean modular structure |
-| **Code Quality** | 8/10 | Strong functional programming, good naming, minor improvements needed |
-| **Test Coverage** | 6/10 | Good unit tests, but browser tests failing, missing integration tests |
-| **Security** | 8/10 | No critical issues, but dependency audit recommended |
-| **Documentation** | 5/10 | Code is self-documenting, but missing README and some API docs |
-| **Vision Alignment** | 6/10 | Core structure aligned, but key features (combat, persistence) incomplete |
-| **Performance** | 7/10 | No monitoring, but code structure supports 60fps target |
-
-**Overall Score: 7.0/10** - Solid foundation with clear path to completion
-
-### Priority Ranking
-
-**Must Fix (P0):**
-1. Fix browser test failures
-2. Implement persistence layer (per vision)
-3. Complete combat system (per vision)
-
-**Should Fix (P1):**
-4. Add error handling and boundaries
-5. Audit for memory leaks
-6. Add performance monitoring
-
-**Nice to Have (P2):**
-7. Improve accessibility
-8. Extract magic numbers to config
-9. Add JSDoc for public APIs
-10. Add integration tests
-
----
+1. **Missing optimizations** - Low priority, but should be addressed
+2. **No caching** - Low priority, but would improve performance
 
 ## 💬 Respond
 
 ### Summary
 
-The SlotScroller project demonstrates **strong architectural foundations** with excellent separation of concerns, clean functional code, and comprehensive unit test coverage for game logic. The codebase follows best practices and aligns well with the vision document's technical architecture.
+The drag-and-drop system recalculates layouts and redraws graphics on every pointer move event (60-120+ times per second), causing lag. Icon removal is instant with no animation, making it feel abrupt and unintuitive. Graphics are redrawn unnecessarily on every update.
 
-**Key Strengths:**
-- Pure game logic cleanly separated from rendering
-- Strong TypeScript usage and type safety
-- Good test coverage for core game mechanics
-- No security vulnerabilities detected
+### Key Findings
 
-**Critical Gaps:**
-- Browser tests are failing (21 tests)
-- Persistence layer missing (required by vision)
-- Combat system incomplete (core gameplay feature)
+**Drag Performance:**
+- `showDropZone()` called on every `dragmove` event
+- `computeCenteredGridLayout()` recalculated 60+ times per second
+- Drop zone graphics cleared/redrawn on every drag move
+- No throttling of drag events
 
-**Recommendations:**
-1. **Immediate**: Fix browser test environment to restore test confidence
-2. **Short-term**: Implement persistence layer per vision document
-3. **Short-term**: Complete combat system (enemy attacks, icon removal, wheel destruction)
-4. **Medium-term**: Add error handling, performance monitoring, accessibility features
+**Icon Removal:**
+- Instant removal with no animation
+- Graphics redrawn immediately (frame, clip mask, soft blocks)
+- No visual feedback showing which icon was removed
+- Wheel size change is instant (jarring)
 
-The project is well-positioned for completion. The architecture supports the remaining features, and the code quality is high. Focus should be on completing the vision-required features and fixing the test infrastructure.
+**Redundant Operations:**
+- `renderFrame()`, `renderClipMask()`, `renderSoftBlocks()` called on every `update()`
+- Layout recalculated even when strip hasn't changed
+- No caching of expensive calculations
 
----
+### Recommended Approach
 
-### Action Items
+1. **Throttle drag events** to ~30fps using `requestAnimationFrame`
+2. **Cache drop zone calculations** during drag operations
+3. **Add icon removal animation** (fade out, smooth transition)
+4. **Optimize wheel updates** - only redraw graphics when dimensions change
+5. **Add smooth transitions** for wheel size changes using PixiJS ticker
 
-- [ ] Fix browser test failures (document not defined)
-- [ ] Implement `save/` module with localStorage/IndexedDB
-- [ ] Complete combat system (enemy attacks, icon removal, wheel destruction)
-- [ ] Add error boundaries and error handling
-- [ ] Audit dependencies: `npm audit`
-- [ ] Add performance monitoring (FPS tracking)
-- [ ] Extract magic numbers to config files
-- [ ] Add JSDoc comments for public APIs
-- [ ] Add integration tests for full game flow
-- [ ] Add accessibility features (ARIA labels, keyboard navigation)
+### Next Steps
 
----
-
-**Review Complete** ✅
+Create a task epic to:
+- Throttle drag events and optimize drop zone rendering
+- Add smooth icon removal animations
+- Optimize wheel update rendering
+- Implement caching for expensive calculations
