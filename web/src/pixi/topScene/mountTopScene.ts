@@ -29,26 +29,68 @@ type MountedTopScene = {
 
 
 
+// Helper function to initialize PixiJS app with timeout and explicit dimensions
+async function initPixiAppWithTimeout(
+  app: Application,
+  rootEl: HTMLElement,
+  options: { background?: number; antialias?: boolean },
+  timeoutMs = 5000,
+): Promise<void> {
+  const width = rootEl.offsetWidth || window.innerWidth
+  const height = rootEl.offsetHeight || Math.floor(window.innerHeight * 0.4)
+
+  console.log('[initPixiApp] Using explicit dimensions:', { width, height })
+
+  const initPromise = app.init({
+    width,
+    height,
+    background: options.background ?? 0x000000,
+    antialias: options.antialias ?? false,
+  })
+
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    setTimeout(() => {
+      reject(new Error(`PixiJS app.init() timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+  })
+
+  await Promise.race([initPromise, timeoutPromise])
+}
+
 export async function mountTopScene(
   rootEl: HTMLElement,
   options: { onEnemyAttack?: EnemyAttackCallback } = {},
 ): Promise<MountedTopScene> {
   console.log('[mountTopScene] Starting initialization...')
+  const rootWidth = rootEl.offsetWidth
+  const rootHeight = rootEl.offsetHeight
   console.log('[mountTopScene] Root element:', {
     id: rootEl.id,
     tagName: rootEl.tagName,
-    dimensions: { width: rootEl.offsetWidth, height: rootEl.offsetHeight },
+    width: rootWidth,
+    height: rootHeight,
   })
+
+  // Check WebGL availability
+  const canvas = document.createElement('canvas')
+  const gl = canvas.getContext('webgl') || canvas.getContext('webgl2')
+  if (!gl) {
+    const error = new Error('WebGL is not available in this browser')
+    console.error('[mountTopScene] WebGL check failed:', error)
+    throw error
+  }
+  console.log('[mountTopScene] WebGL available')
 
   const { onEnemyAttack } = options
   const app = new Application()
 
   try {
-    await app.init({
-      resizeTo: rootEl,
-      background: 0x07101c,
-      antialias: true,
-    })
+    await initPixiAppWithTimeout(
+      app,
+      rootEl,
+      { background: 0x07101c, antialias: true },
+      5000,
+    )
     console.log('[mountTopScene] Application initialized successfully')
     console.log('[mountTopScene] Canvas:', {
       exists: !!app.canvas,
@@ -57,6 +99,12 @@ export async function mountTopScene(
     })
   } catch (error) {
     console.error('[mountTopScene] Failed to initialize application:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[mountTopScene] Error details:', {
+      message: errorMessage,
+      rootDimensions: { width: rootWidth, height: rootHeight },
+      webglAvailable: !!gl,
+    })
     throw error
   }
 

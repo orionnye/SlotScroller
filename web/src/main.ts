@@ -140,31 +140,58 @@ const { pixiRoot, topPixiRoot, spinBtn, payoutTotal, payoutLines } =
 
 // Verify root elements exist and have dimensions
 console.log('[main] Verifying root elements...')
+const pixiRootWidth = pixiRoot.offsetWidth
+const pixiRootHeight = pixiRoot.offsetHeight
+const topPixiRootWidth = topPixiRoot.offsetWidth
+const topPixiRootHeight = topPixiRoot.offsetHeight
+
 console.log('[main] pixiRoot:', {
   exists: !!pixiRoot,
   id: pixiRoot.id,
-  dimensions: { width: pixiRoot.offsetWidth, height: pixiRoot.offsetHeight },
+  width: pixiRootWidth,
+  height: pixiRootHeight,
   computed: window.getComputedStyle(pixiRoot).display,
 })
 
 console.log('[main] topPixiRoot:', {
   exists: !!topPixiRoot,
   id: topPixiRoot.id,
-  dimensions: { width: topPixiRoot.offsetWidth, height: topPixiRoot.offsetHeight },
+  width: topPixiRootWidth,
+  height: topPixiRootHeight,
   computed: window.getComputedStyle(topPixiRoot).display,
 })
 
-// Wait for layout calculation if dimensions are zero
-if (pixiRoot.offsetWidth === 0 || pixiRoot.offsetHeight === 0) {
-  console.warn('[main] pixiRoot has zero dimensions, waiting for layout...')
-  await new Promise<void>((resolve) => {
+// Wait for layout calculation if dimensions are zero (with timeout)
+const waitForDimensions = async (
+  element: HTMLElement,
+  elementName: string,
+  timeoutMs = 5000,
+): Promise<{ width: number; height: number }> => {
+  if (element.offsetWidth > 0 && element.offsetHeight > 0) {
+    return { width: element.offsetWidth, height: element.offsetHeight }
+  }
+
+  console.warn(`[main] ${elementName} has zero dimensions, waiting for layout...`)
+  
+  return new Promise<{ width: number; height: number }>((resolve) => {
+    const startTime = Date.now()
     const checkDimensions = () => {
-      if (pixiRoot.offsetWidth > 0 && pixiRoot.offsetHeight > 0) {
-        console.log('[main] pixiRoot dimensions resolved:', {
-          width: pixiRoot.offsetWidth,
-          height: pixiRoot.offsetHeight,
+      const elapsed = Date.now() - startTime
+      const width = element.offsetWidth
+      const height = element.offsetHeight
+
+      if (width > 0 && height > 0) {
+        console.log(`[main] ${elementName} dimensions resolved:`, { width, height })
+        resolve({ width, height })
+      } else if (elapsed >= timeoutMs) {
+        // Timeout reached - use fallback dimensions or window size
+        const fallbackWidth = width || window.innerWidth
+        const fallbackHeight = height || Math.floor(window.innerHeight * 0.4)
+        console.warn(`[main] ${elementName} dimensions timeout, using fallback:`, {
+          width: fallbackWidth,
+          height: fallbackHeight,
         })
-        resolve()
+        resolve({ width: fallbackWidth, height: fallbackHeight })
       } else {
         requestAnimationFrame(checkDimensions)
       }
@@ -173,23 +200,13 @@ if (pixiRoot.offsetWidth === 0 || pixiRoot.offsetHeight === 0) {
   })
 }
 
-if (topPixiRoot.offsetWidth === 0 || topPixiRoot.offsetHeight === 0) {
-  console.warn('[main] topPixiRoot has zero dimensions, waiting for layout...')
-  await new Promise<void>((resolve) => {
-    const checkDimensions = () => {
-      if (topPixiRoot.offsetWidth > 0 && topPixiRoot.offsetHeight > 0) {
-        console.log('[main] topPixiRoot dimensions resolved:', {
-          width: topPixiRoot.offsetWidth,
-          height: topPixiRoot.offsetHeight,
-        })
-        resolve()
-      } else {
-        requestAnimationFrame(checkDimensions)
-      }
-    }
-    requestAnimationFrame(checkDimensions)
-  })
-}
+const pixiRootDims = await waitForDimensions(pixiRoot, 'pixiRoot')
+const topPixiRootDims = await waitForDimensions(topPixiRoot, 'topPixiRoot')
+
+console.log('[main] Final dimensions:', {
+  pixiRoot: pixiRootDims,
+  topPixiRoot: topPixiRootDims,
+})
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 

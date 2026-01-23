@@ -1,6 +1,6 @@
 # Fix PixiJS Not Rendering on GitHub Pages Epic
 
-**Status**: 📋 PLANNED  
+**Status**: 🔄 IN PROGRESS  
 **Goal**: Fix the issue where PixiJS content is not rendering on the deployed GitHub Pages site, ensuring the game displays correctly at `https://orionnye.github.io/SlotScroller/`.
 
 ## Overview

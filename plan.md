@@ -6,12 +6,14 @@
 
 These tasks address immediate deployment issues and code quality:
 
-0. **Fix PixiJS Not Rendering on GitHub Pages** (`tasks/fix-pixijs-not-rendering-on-github-pages.md`) - **CRITICAL**
-   - Add error handling and debugging to identify initialization failures
-   - Verify module loading and base path configuration
-   - Add dimension checks for root elements
-   - Test in production-like environment
-   - **Why first**: Site is deployed but game doesn't render - critical user-facing issue
+0. **Fix PixiJS Rendering on GitHub Pages Deployment** (`tasks/fix-github-pages-pixijs-rendering.md`) - **CRITICAL**
+   - Diagnose GitHub Pages environment differences causing `app.init()` to fail
+   - Add timeout and better error handling for `app.init()` to prevent silent hangs
+   - Use explicit dimensions instead of `resizeTo` to avoid layout timing issues
+   - Fix missing public assets (vite.svg 404)
+   - Add WebGL/WebGPU fallback detection
+   - Improve logging to show actual values for debugging
+   - **Why first**: Works locally but fails on GitHub Pages - deployment-specific critical issue
 
 1. **Fix Remaining TypeScript Errors** (`tasks/fix-remaining-typescript-errors.md`) - **BLOCKING**
    - Fix `getEnemyColor` unused declaration

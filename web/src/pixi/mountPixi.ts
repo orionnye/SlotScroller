@@ -30,25 +30,67 @@ export type MountedPixi = {
   destroy: () => void
 }
 
+// Helper function to initialize PixiJS app with timeout and explicit dimensions
+async function initPixiAppWithTimeout(
+  app: Application,
+  rootEl: HTMLElement,
+  options: { background?: number; antialias?: boolean },
+  timeoutMs = 5000,
+): Promise<void> {
+  const width = rootEl.offsetWidth || window.innerWidth
+  const height = rootEl.offsetHeight || Math.floor(window.innerHeight * 0.6)
+
+  console.log('[initPixiApp] Using explicit dimensions:', { width, height })
+
+  const initPromise = app.init({
+    width,
+    height,
+    background: options.background ?? 0x000000,
+    antialias: options.antialias ?? false,
+  })
+
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    setTimeout(() => {
+      reject(new Error(`PixiJS app.init() timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+  })
+
+  await Promise.race([initPromise, timeoutPromise])
+}
+
 export async function mountPixi(
   root: HTMLElement,
   options: { onSpinComplete?: (result: SpinResult) => void } = {},
 ): Promise<MountedPixi> {
   console.log('[mountPixi] Starting initialization...')
+  const rootWidth = root.offsetWidth
+  const rootHeight = root.offsetHeight
   console.log('[mountPixi] Root element:', {
     id: root.id,
     tagName: root.tagName,
-    dimensions: { width: root.offsetWidth, height: root.offsetHeight },
+    width: rootWidth,
+    height: rootHeight,
   })
+
+  // Check WebGL availability
+  const canvas = document.createElement('canvas')
+  const gl = canvas.getContext('webgl') || canvas.getContext('webgl2')
+  if (!gl) {
+    const error = new Error('WebGL is not available in this browser')
+    console.error('[mountPixi] WebGL check failed:', error)
+    throw error
+  }
+  console.log('[mountPixi] WebGL available')
 
   const app = new Application()
 
   try {
-    await app.init({
-      resizeTo: root,
-      background: 0x0b1020,
-      antialias: true,
-    })
+    await initPixiAppWithTimeout(
+      app,
+      root,
+      { background: 0x0b1020, antialias: true },
+      5000,
+    )
     console.log('[mountPixi] Application initialized successfully')
     console.log('[mountPixi] Canvas:', {
       exists: !!app.canvas,
@@ -57,6 +99,12 @@ export async function mountPixi(
     })
   } catch (error) {
     console.error('[mountPixi] Failed to initialize application:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[mountPixi] Error details:', {
+      message: errorMessage,
+      rootDimensions: { width: rootWidth, height: rootHeight },
+      webglAvailable: !!gl,
+    })
     throw error
   }
 
