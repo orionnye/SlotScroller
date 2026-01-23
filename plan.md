@@ -6,25 +6,39 @@
 
 These tasks address immediate deployment issues and code quality:
 
-1. **Setup GitHub Actions Deployment** (`tasks/setup-github-actions-deployment.md`)
+0. **Fix PixiJS Not Rendering on GitHub Pages** (`tasks/fix-pixijs-not-rendering-on-github-pages.md`) - **CRITICAL**
+   - Add error handling and debugging to identify initialization failures
+   - Verify module loading and base path configuration
+   - Add dimension checks for root elements
+   - Test in production-like environment
+   - **Why first**: Site is deployed but game doesn't render - critical user-facing issue
+
+1. **Fix Remaining TypeScript Errors** (`tasks/fix-remaining-typescript-errors.md`) - **BLOCKING**
+   - Fix `getEnemyColor` unused declaration
+   - Fix `bell` icon ID type error
+   - Fix `beforeEach` unused import
+   - Fix `app: Application` object literal error
+   - **Why second**: Build is failing in CI, blocking all deployments
+
+2. **Setup GitHub Actions Deployment** (`tasks/setup-github-actions-deployment.md`)
    - Replace manual `npm run deploy` with automated GitHub Actions workflow
    - Builds and deploys automatically on push to main
    - Eliminates manual branch management
-   - **Why first**: Fixes deployment reliability issues
+   - **Why third**: Fixes deployment reliability issues (after TypeScript errors are fixed)
 
-2. **Clean Unused Code** (`tasks/clean-unused-code.md`)
+3. **Clean Unused Code** (`tasks/clean-unused-code.md`)
    - Remove commented imports in `main.ts` (testDeathAnimation)
    - Delete unused test files: `testDeathAnimation.ts`, `testSvgEnemy.ts`
    - Verify no other dead code exists
-   - **Why second**: Quick cleanup that improves code quality
+   - **Why fourth**: Quick cleanup that improves code quality
 
-3. **Delete Unused Branches** (`tasks/delete-unused-branches.md`)
+4. **Delete Unused Branches** (`tasks/delete-unused-branches.md`)
    - Clean up polluted `gh-pages` branch (has `.DS_Store`, `.cursor`, etc.)
    - Delete branch to let GitHub Actions recreate it cleanly
    - Verify GitHub Pages settings
-   - **Why third**: Cleanup after automated deployment is set up
+   - **Why fifth**: Cleanup after automated deployment is set up
 
-**Execution Order**: Complete tasks 1-3 in sequence. Task 1 enables automated deployment, task 2 cleans code, task 3 cleans up the old manual deployment artifacts.
+**Execution Order**: Complete tasks 0-4 in sequence. Task 0 fixes critical rendering issue, task 1 fixes blocking build errors, task 2 enables automated deployment, task 3 cleans code, task 4 cleans up old deployment artifacts.
 
 ---
 

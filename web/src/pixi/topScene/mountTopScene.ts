@@ -33,16 +33,35 @@ export async function mountTopScene(
   rootEl: HTMLElement,
   options: { onEnemyAttack?: EnemyAttackCallback } = {},
 ): Promise<MountedTopScene> {
+  console.log('[mountTopScene] Starting initialization...')
+  console.log('[mountTopScene] Root element:', {
+    id: rootEl.id,
+    tagName: rootEl.tagName,
+    dimensions: { width: rootEl.offsetWidth, height: rootEl.offsetHeight },
+  })
+
   const { onEnemyAttack } = options
   const app = new Application()
 
-  await app.init({
-    resizeTo: rootEl,
-    background: 0x07101c,
-    antialias: true,
-  })
+  try {
+    await app.init({
+      resizeTo: rootEl,
+      background: 0x07101c,
+      antialias: true,
+    })
+    console.log('[mountTopScene] Application initialized successfully')
+    console.log('[mountTopScene] Canvas:', {
+      exists: !!app.canvas,
+      width: app.canvas.width,
+      height: app.canvas.height,
+    })
+  } catch (error) {
+    console.error('[mountTopScene] Failed to initialize application:', error)
+    throw error
+  }
 
   rootEl.appendChild(app.canvas)
+  console.log('[mountTopScene] Canvas appended to root element')
 
   const world = new Container()
   app.stage.addChild(world)

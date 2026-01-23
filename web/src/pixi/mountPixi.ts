@@ -34,15 +34,34 @@ export async function mountPixi(
   root: HTMLElement,
   options: { onSpinComplete?: (result: SpinResult) => void } = {},
 ): Promise<MountedPixi> {
-  const app = new Application()
-
-  await app.init({
-    resizeTo: root,
-    background: 0x0b1020,
-    antialias: true,
+  console.log('[mountPixi] Starting initialization...')
+  console.log('[mountPixi] Root element:', {
+    id: root.id,
+    tagName: root.tagName,
+    dimensions: { width: root.offsetWidth, height: root.offsetHeight },
   })
 
+  const app = new Application()
+
+  try {
+    await app.init({
+      resizeTo: root,
+      background: 0x0b1020,
+      antialias: true,
+    })
+    console.log('[mountPixi] Application initialized successfully')
+    console.log('[mountPixi] Canvas:', {
+      exists: !!app.canvas,
+      width: app.canvas.width,
+      height: app.canvas.height,
+    })
+  } catch (error) {
+    console.error('[mountPixi] Failed to initialize application:', error)
+    throw error
+  }
+
   root.appendChild(app.canvas)
+  console.log('[mountPixi] Canvas appended to root element')
 
   const { count: WHEEL_COUNT, visibleCount, slotSpacing, iconSize } = WHEEL_CONFIG
 

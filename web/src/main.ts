@@ -125,74 +125,163 @@ function createPayoutLine(label: string, amount: number): HTMLDivElement {
   return line
 }
 
-const appEl = document.querySelector<HTMLDivElement>('#app')
-if (!appEl) throw new Error('Missing #app element')
+console.log('[main] Starting application initialization...')
 
+const appEl = document.querySelector<HTMLDivElement>('#app')
+if (!appEl) {
+  const error = new Error('Missing #app element')
+  console.error('[main] FATAL:', error)
+  throw error
+}
+
+console.log('[main] #app element found, creating app structure...')
 const { pixiRoot, topPixiRoot, spinBtn, payoutTotal, payoutLines } =
   createAppStructure(appEl)
 
+// Verify root elements exist and have dimensions
+console.log('[main] Verifying root elements...')
+console.log('[main] pixiRoot:', {
+  exists: !!pixiRoot,
+  id: pixiRoot.id,
+  dimensions: { width: pixiRoot.offsetWidth, height: pixiRoot.offsetHeight },
+  computed: window.getComputedStyle(pixiRoot).display,
+})
+
+console.log('[main] topPixiRoot:', {
+  exists: !!topPixiRoot,
+  id: topPixiRoot.id,
+  dimensions: { width: topPixiRoot.offsetWidth, height: topPixiRoot.offsetHeight },
+  computed: window.getComputedStyle(topPixiRoot).display,
+})
+
+// Wait for layout calculation if dimensions are zero
+if (pixiRoot.offsetWidth === 0 || pixiRoot.offsetHeight === 0) {
+  console.warn('[main] pixiRoot has zero dimensions, waiting for layout...')
+  await new Promise<void>((resolve) => {
+    const checkDimensions = () => {
+      if (pixiRoot.offsetWidth > 0 && pixiRoot.offsetHeight > 0) {
+        console.log('[main] pixiRoot dimensions resolved:', {
+          width: pixiRoot.offsetWidth,
+          height: pixiRoot.offsetHeight,
+        })
+        resolve()
+      } else {
+        requestAnimationFrame(checkDimensions)
+      }
+    }
+    requestAnimationFrame(checkDimensions)
+  })
+}
+
+if (topPixiRoot.offsetWidth === 0 || topPixiRoot.offsetHeight === 0) {
+  console.warn('[main] topPixiRoot has zero dimensions, waiting for layout...')
+  await new Promise<void>((resolve) => {
+    const checkDimensions = () => {
+      if (topPixiRoot.offsetWidth > 0 && topPixiRoot.offsetHeight > 0) {
+        console.log('[main] topPixiRoot dimensions resolved:', {
+          width: topPixiRoot.offsetWidth,
+          height: topPixiRoot.offsetHeight,
+        })
+        resolve()
+      } else {
+        requestAnimationFrame(checkDimensions)
+      }
+    }
+    requestAnimationFrame(checkDimensions)
+  })
+}
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
-const topScene = await mountTopScene(topPixiRoot, {
-  onEnemyAttack: () => {
-    // Check if game is over
-    if (pixi.isGameOver()) return
-    
-    // Target the rightmost wheel (highest index)
-    // Get the number of wheels from the mounted pixi instance
-    const wheelCount = pixi.getWheelCount?.() ?? 5
-    if (wheelCount === 0) return // No wheels left, game over should already be triggered
-    
-    const rightmostIndex = wheelCount > 0 ? wheelCount - 1 : 0
-    pixi.removeIconFromWheel(rightmostIndex)
-  },
-})
+let topScene: Awaited<ReturnType<typeof mountTopScene>>
+let pixi: Awaited<ReturnType<typeof mountPixi>>
 
-const pixi = await mountPixi(pixiRoot, {
-  onSpinComplete: async (result) => {
-    // Lock input during reveal + add sequence
-    spinBtn.disabled = true
-    pixi.setLocked(true)
+// Initialize top scene with error handling
+console.log('[main] Initializing top scene...')
+try {
+  topScene = await mountTopScene(topPixiRoot, {
+    onEnemyAttack: () => {
+      // Check if game is over
+      if (pixi?.isGameOver()) return
+      
+      // Target the rightmost wheel (highest index)
+      // Get the number of wheels from the mounted pixi instance
+      const wheelCount = pixi?.getWheelCount?.() ?? 5
+      if (wheelCount === 0) return // No wheels left, game over should already be triggered
+      
+      const rightmostIndex = wheelCount > 0 ? wheelCount - 1 : 0
+      pixi?.removeIconFromWheel(rightmostIndex)
+    },
+  })
+  console.log('[main] Top scene initialized successfully')
+} catch (error) {
+  console.error('[main] Failed to initialize top scene:', error)
+  const errorDiv = document.createElement('div')
+  errorDiv.style.cssText = 'color: red; padding: 20px; background: rgba(255,0,0,0.1); margin: 20px;'
+  errorDiv.textContent = `Failed to initialize top scene: ${error instanceof Error ? error.message : String(error)}`
+  topPixiRoot.appendChild(errorDiv)
+  throw error
+}
 
-    const payout = calcPayout(result)
-    const payoutPanel: PayoutPanel = {
-      total: payoutTotal,
-      lines: payoutLines,
-    }
+// Initialize main PixiJS app with error handling
+console.log('[main] Initializing main PixiJS app...')
+try {
+  pixi = await mountPixi(pixiRoot, {
+    onSpinComplete: async (result) => {
+      // Lock input during reveal + add sequence
+      spinBtn.disabled = true
+      pixi.setLocked(true)
 
-    // Animate adding wheel values into payout panel
-    payoutPanel.lines.replaceChildren()
-    payoutPanel.total.textContent = '0'
+      const payout = calcPayout(result)
+      const payoutPanel: PayoutPanel = {
+        total: payoutTotal,
+        lines: payoutLines,
+      }
 
-    await revealBaseContributions(
-      result,
-      pixi,
-      payoutPanel,
-      createPayoutLine,
-      sleep,
-      ANIMATION_CONFIG,
-    )
+      // Animate adding wheel values into payout panel
+      payoutPanel.lines.replaceChildren()
+      payoutPanel.total.textContent = '0'
 
-    await revealComboBonuses(result, pixi, payoutPanel, createPayoutLine, sleep, ANIMATION_CONFIG)
+      await revealBaseContributions(
+        result,
+        pixi,
+        payoutPanel,
+        createPayoutLine,
+        sleep,
+        ANIMATION_CONFIG,
+      )
 
-    payoutPanel.total.textContent = String(payout.total)
-    await sleep(ANIMATION_CONFIG.finalPayoutDelayMs)
-    pixi.hideWheelValues()
+      await revealComboBonuses(result, pixi, payoutPanel, createPayoutLine, sleep, ANIMATION_CONFIG)
 
-    // Trigger Hero attack animation and deal damage to nearest enemy
-    const nearestEnemy = topScene.findNearestEnemy()
-    if (nearestEnemy) {
-      await topScene.triggerHeroAttack(nearestEnemy, payout.total)
-    }
+      payoutPanel.total.textContent = String(payout.total)
+      await sleep(ANIMATION_CONFIG.finalPayoutDelayMs)
+      pixi.hideWheelValues()
 
-    pixi.setLocked(false)
-    spinBtn.disabled = false
-  },
-})
+      // Trigger Hero attack animation and deal damage to nearest enemy
+      const nearestEnemy = topScene.findNearestEnemy()
+      if (nearestEnemy) {
+        await topScene.triggerHeroAttack(nearestEnemy, payout.total)
+      }
+
+      pixi.setLocked(false)
+      spinBtn.disabled = false
+    },
+  })
+  console.log('[main] Main PixiJS app initialized successfully')
+} catch (error) {
+  console.error('[main] Failed to initialize main PixiJS app:', error)
+  const errorDiv = document.createElement('div')
+  errorDiv.style.cssText = 'color: red; padding: 20px; background: rgba(255,0,0,0.1); margin: 20px;'
+  errorDiv.textContent = `Failed to initialize game: ${error instanceof Error ? error.message : String(error)}`
+  pixiRoot.appendChild(errorDiv)
+  throw error
+}
 
 spinBtn.addEventListener('click', () => {
   pixi.spin()
 })
+
+console.log('[main] Application initialization complete!')
 
 // Test death animation disabled - using real DOM-based death animations now
 // void createDeathAnimationTest()
