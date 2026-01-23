@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, afterEach } from 'vitest'
+import { describe, expect, test, afterEach } from 'vitest'
 
 import {
   createPixiApp,
@@ -23,7 +23,10 @@ describe('browser-test-utils', () => {
     expect(container).toBeInstanceOf(HTMLElement)
     expect(container.parentNode).toBe(document.body)
     expect(container.style.position).toBe('absolute')
-    cleanupPixiApp({ app: {} as any, container }, container)
+    // Cleanup test container
+    if (container.parentNode) {
+      container.parentNode.removeChild(container)
+    }
   })
 
   test('given createPixiApp is called, should create and initialize Application in browser', async () => {

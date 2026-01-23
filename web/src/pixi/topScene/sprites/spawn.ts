@@ -8,11 +8,6 @@ type Rng = {
   nextInt: (max: number) => number
 }
 
-type SceneState = {
-  groundY: number
-  treeScale: number
-}
-
 export function spawnTuft(
   x: number,
   tuftTextures: Texture[],

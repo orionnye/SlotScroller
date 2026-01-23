@@ -53,11 +53,15 @@ export function dealDamageToEnemy(
   enemy: { sprite: Sprite; hp?: number },
   damage: number,
   enemies: CharacterSprite[],
-  charactersLayer: Container,
-  frontLayer: Container,
+  _charactersLayer: Container,
+  _frontLayer: Container,
   deathAnimations: SvgDeathAnimation[],
   app: Application,
 ): boolean {
+  // Mark unused parameters as intentionally unused
+  void _charactersLayer
+  void _frontLayer
+  
   // Find the actual enemy object to update HP
   const actualEnemy = enemies.find((e) => e.sprite === enemy.sprite)
   if (!actualEnemy || actualEnemy.kind !== 'enemy' || !actualEnemy.hp) return false

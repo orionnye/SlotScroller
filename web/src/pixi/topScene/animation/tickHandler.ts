@@ -29,11 +29,15 @@ export function createTickHandler(
   rng: Rng,
   state: SceneState,
   app: Application,
-  charactersLayer: Container,
-  frontLayer: Container,
+  _charactersLayer: Container,
+  _frontLayer: Container,
   onEnemyAttack?: EnemyAttackCallback,
   deathAnimations?: SvgDeathAnimation[],
 ) {
+  // Mark unused parameters as intentionally unused
+  void _charactersLayer
+  void _frontLayer
+  
   return (time: { deltaTime: number }) => {
     const dt = time.deltaTime / 60
 

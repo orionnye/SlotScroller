@@ -103,7 +103,7 @@ export async function mountPixi(
     // Add fresh event listeners
     for (let i = 0; i < wheels.length; i += 1) {
       const wheel = wheels[i]
-      wheel.view.on('dragstart', (event: { wheel: WheelStripView; originalX: number }) => {
+      wheel.view.on('dragstart', (_event: { wheel: WheelStripView; originalX: number }) => {
         if (activeSpin || locked || gameOver) return
         draggedWheel = wheel
         draggedWheelOriginalIndex = i
@@ -143,7 +143,7 @@ export async function mountPixi(
         }
       })
 
-      wheel.view.on('dragend', (event: { wheel: WheelStripView; x: number; globalX: number }) => {
+      wheel.view.on('dragend', ({ globalX }: { wheel: WheelStripView; x: number; globalX: number }) => {
         if (draggedWheel === null) return
         
         // Cancel any pending animation frame
@@ -153,7 +153,7 @@ export async function mountPixi(
         }
         pendingDragMove = null
         
-        handleWheelDrop(event.globalX)
+        handleWheelDrop(globalX)
         draggedWheel = null
         draggedWheelOriginalIndex = null
         hideDropZone()

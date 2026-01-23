@@ -11,14 +11,6 @@ export type SvgDeathAnimation = {
   initialLeft: number
 }
 
-function getEnemyColor(enemyColor?: number): string {
-  // Use stored color or default green
-  if (enemyColor !== undefined) {
-    return `#${enemyColor.toString(16).padStart(6, '0')}`
-  }
-  return '#22c55e' // Default green
-}
-
 export function createSvgDeathSquare(
   enemySprite: Sprite,
   sourceCanvas: HTMLCanvasElement,

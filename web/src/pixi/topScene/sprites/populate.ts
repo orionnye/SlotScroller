@@ -1,4 +1,4 @@
-import { Application, Container, Sprite, type Texture } from 'pixi.js'
+import { Application, Container, type Texture } from 'pixi.js'
 
 import type { CharacterSprite, ScrollerSprite } from '../types'
 import { spawnTuft, spawnTree, spawnEnemy } from './spawn'

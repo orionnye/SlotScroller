@@ -8,8 +8,11 @@ export type DeathClone = {
 
 export function createDeathClone(
   enemySprite: Sprite,
-  overlayApp: Application,
+  _overlayApp: Application,
 ): DeathClone {
+  // Mark unused parameter as intentionally unused
+  void _overlayApp
+  
   // Create a new sprite with the same texture
   const cloneSprite = new Sprite(enemySprite.texture)
   

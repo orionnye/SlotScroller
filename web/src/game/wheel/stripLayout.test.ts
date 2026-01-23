@@ -32,7 +32,7 @@ describe('getStripLayout', () => {
   })
 
   test('shows full visibleCount when more icons than visibleCount', () => {
-    const strip = createWheelStrip(['cherry', 'lemon', 'seven', 'coin', 'diamond', 'star', 'bell', 'bar'], 0)
+    const strip = createWheelStrip(['cherry', 'lemon', 'seven', 'coin', 'diamond', 'star', 'clover', 'bar'], 0)
     const layout = getStripLayout({ strip, visibleCount: 5, slotSpacing: 10 })
 
     expect(layout.iconIds.length).toBe(5) // Should show 5 slots
