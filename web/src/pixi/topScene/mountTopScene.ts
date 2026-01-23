@@ -30,22 +30,26 @@ type MountedTopScene = {
 
 
 // Helper function to initialize PixiJS app with timeout and explicit dimensions
+// Note: PixiJS v8 + Vite has a known issue where app.init() can hang in production
+// We use preference: 'webgl' to force WebGL1 and avoid WebGPU issues
 async function initPixiAppWithTimeout(
   app: Application,
   rootEl: HTMLElement,
   options: { background?: number; antialias?: boolean },
-  timeoutMs = 5000,
+  timeoutMs = 10000, // Increased timeout for GitHub Pages
 ): Promise<void> {
   const width = rootEl.offsetWidth || window.innerWidth
   const height = rootEl.offsetHeight || Math.floor(window.innerHeight * 0.4)
 
   console.log('[initPixiApp] Using explicit dimensions:', { width, height })
 
+  // Force WebGL1 to avoid WebGPU initialization issues in GitHub Pages
   const initPromise = app.init({
     width,
     height,
     background: options.background ?? 0x000000,
     antialias: options.antialias ?? false,
+    preference: 'webgl', // Force WebGL1 instead of auto-detecting WebGPU
   })
 
   const timeoutPromise = new Promise<never>((_resolve, reject) => {
@@ -85,12 +89,16 @@ export async function mountTopScene(
   const app = new Application()
 
   try {
+    console.log('[mountTopScene] Starting app.init() with WebGL preference...')
+    const startTime = Date.now()
     await initPixiAppWithTimeout(
       app,
       rootEl,
       { background: 0x07101c, antialias: true },
-      5000,
+      10000,
     )
+    const initDuration = Date.now() - startTime
+    console.log(`[mountTopScene] app.init() completed in ${initDuration}ms`)
     console.log('[mountTopScene] Application initialized successfully')
     console.log('[mountTopScene] Canvas:', {
       exists: !!app.canvas,
